@@ -13,6 +13,7 @@ if "nrs_fk_core" not in sys.modules:
     from nrs_fk_core import FKSolver
 else:
     FKSolver = sys.modules["nrs_fk_core"].FKSolver
+
 fk_solver = FKSolver(tool_z=0.239, use_degrees=False)
 
 
@@ -43,6 +44,7 @@ def grid_mask_state_obs(env, grid_mask_history_len=4):
     # env.grid_mask가 정의되지 않았다면 초기화
     if not hasattr(env, "grid_mask"):
         total_dim = grid_x_num * grid_y_num * grid_mask_history_len
+
         return torch.zeros((env.num_envs, total_dim), device=env.device)
     
     # Grid Mask가 정의된 이후의 정상적인 실행 로직

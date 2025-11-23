@@ -110,7 +110,6 @@ def coverage_reward(env, grid_size=0.02):
     
     # grid mask 초기화
     if not hasattr(env, "grid_mask"):
-
         return torch.zeros(env.num_envs, dtype=torch.float, device=env.device)
     
     previous_mask = env.grid_mask.clone()
