@@ -44,13 +44,6 @@ def grid_mask_state_obs(env, grid_mask_history_len=4):
     # Grid Mask가 정의된 이후의 정상적인 실행 로직
     current_mask_float = env.grid_mask.float()
     is_reset = (env.episode_length_buf == 0).any()
-    
-    # 커버리지 비율 계산 및 디버깅 출력
-    total_grids = grid_x_num * grid_y_num
-    covered_counts = torch.sum(current_mask_float, dim=[1, 2])
-    coverage_percentages = (covered_counts / total_grids) * 100
-    first_env_coverage = coverage_percentages[0].item()
-    print(f"Current Workpiece Coverage: {first_env_coverage:.2f}% (Total grids: {total_grids}, Covered: {covered_counts[0].item():.0f})")
 
     # 히스토리 버퍼 초기화 및 업데이트
     if not hasattr(env, "_grid_mask_history") or is_reset:

@@ -174,25 +174,15 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
    
-    # new_visit = RewTerm(
-    #     func=local_rew.new_visit_reward,
-    #     weight=0.0,
-    # )
-
     coverage = RewTerm(
         func=local_rew.coverage_reward,
-        weight=3.5,
+        weight=2.0,
         params={"exp_scale": 4.0},
-    )
-    
-    ee_movement = RewTerm(
-        func=local_rew.ee_movement_reward,
-        weight=10.0,
     )
 
     out_of_bounds_penalty = RewTerm(
         func=local_rew.out_of_bounds_penalty,
-        weight=10.0
+        weight=5.0
     )
 
     # 중복 방문 벌점을 0.5 -> 0.0으로 삭제
@@ -204,22 +194,21 @@ class RewardsCfg:
     # 표면 높이 유지
     surface_proximity = RewTerm(
         func=local_rew.surface_proximity_reward,
-        weight=3.0,
+        weight=15.0,
     )
     
     # 수직 자세 유지
-    # 초반 탐색 방해를 줄이기 위해 1.5 -> 0.5로 잠시 낮춤 (나중에 올려도 됨)
     ee_orientation_alignment = RewTerm(
         func=local_rew.ee_orientation_alignment,
-        weight=10.0,
+        weight=18.0,
         params={"target_axis": (0.0, 0.0, -1.0)},
     )
 
     # 시간 효율성
     time_efficiency = RewTerm(
         func=local_rew.time_efficiency_reward,
-        weight=0.2,
-        params={"max_steps": 1800},
+        weight=5.0,
+        params={"max_steps": 1200},
     )
 
 @configclass
@@ -294,7 +283,7 @@ class RobotarmEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 30.0
+        self.episode_length_s = 20.0
         # viewer settings
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings

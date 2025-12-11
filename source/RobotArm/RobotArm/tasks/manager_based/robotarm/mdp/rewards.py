@@ -57,15 +57,27 @@ def coverage_reward(env: "ManagerBasedRLEnv", exp_scale: float = 5.0):
         return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
     
     indices = torch.arange(env.num_envs, device=env.device)
-    env.grid_mask[indices, grid_x, grid_y] = True
     total_cells = env.grid_x_num * env.grid_y_num
+
+    # 업데이트 전의 coverage 저장
+    previous_covered_count = env.grid_mask.sum(dim=(1, 2)).float()
+
+    # 이 비율을 env에 저장 (다음 스텝의 revisit_penalty가 이 값을 사용합니다)
+    env._prev_covered_count = previous_covered_count.clone()
+
+    # 현재 위치 방문 표시 (마스크 업데이트)
+    env.grid_mask[indices, grid_x, grid_y] = True
     
     # 전체 coverage 비율
     current_covered_count = env.grid_mask.sum(dim=(1, 2)).float()
     coverage_ratio = current_covered_count / float(total_cells)  # (num_envs,)
 
-    print(f"Current Workpiece Coverage: {coverage_ratio[ENV_ID].item()*100:.2f}% "
-          f"(Total cells: {total_cells}, Covered: {current_covered_count[ENV_ID].item():.0f})")
+    env._current_covered_count = current_covered_count.clone()
+
+    print(f"Mean Workpiece Coverage: {coverage_ratio.mean().item()*100:.2f}% "
+          f"(Total cells: {total_cells}, Covered: {current_covered_count.mean().item():.0f})")
+    # print(f"Current Workpiece Coverage: {coverage_ratio[ENV_ID].item()*100:.2f}% "
+    #       f"(Total cells: {total_cells}, Covered: {current_covered_count[ENV_ID].item():.0f})")
     log_coverage_data(env, coverage_ratio[ENV_ID])
 
     # exponential scaling 적용
@@ -102,15 +114,16 @@ def out_of_bounds_penalty(env: "ManagerBasedRLEnv"):
     작업물 XY 범위를 벗어난 경우 강한 패널티를 부여하는 보상 함수.
     scale: penalty strength (기본=5.0)
     """
-    # EE 위치 (월드 프레임)
+    robot = env.scene["robot"]
+    workpiece = env.scene["workpiece"]
+
+    base_pos_w = robot.data.root_pos_w  # 로봇 베이스의 월드 위치 (Num_Envs, 3)
+    WORKPIECE_REL_POS = torch.tensor([0.75, 0.0, 0.0], dtype=base_pos_w.dtype, device=env.device)
+    wp_pos = base_pos_w + WORKPIECE_REL_POS.unsqueeze(0)
+    
     ee_pos = get_ee_pose(env, asset_name="robot")[:, :3]
     ee_x = ee_pos[:, 0]
     ee_y = ee_pos[:, 1]
-
-    # 작업물 정보
-    workpiece = env.scene["workpiece"]
-    wp_pos, _ = workpiece.get_world_poses()
-    wp_pos = wp_pos.to(env.device).squeeze()
 
     wp_size_x = env.wp_size_x
     wp_size_y = env.wp_size_y
@@ -119,35 +132,50 @@ def out_of_bounds_penalty(env: "ManagerBasedRLEnv"):
     half_y = wp_size_y / 2
 
     # 유효 범위
-    min_x = wp_pos[0] - half_x
-    max_x = wp_pos[0] + half_x
-    min_y = wp_pos[1] - half_y
-    max_y = wp_pos[1] + half_y
+    min_x = wp_pos[:, 0] - half_x
+    max_x = wp_pos[:, 0] + half_x
+    min_y = wp_pos[:, 1] - half_y
+    max_y = wp_pos[:, 1] + half_y
 
     # 범위 검사
     out_x = (ee_x < min_x) | (ee_x > max_x)
     out_y = (ee_y < min_y) | (ee_y > max_y)
-    out_of_bounds = out_x | out_y
+    out_of_bounds = (out_x | out_y).float()
 
-    return -out_of_bounds.float()
+    # --- 누적 카운터 ---
+    if not hasattr(env, "_out_of_bounds_count"):
+        env._out_of_bounds_count = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+
+    env._out_of_bounds_count += out_of_bounds
+    # 에피소드 리셋 시 카운터 초기화
+    env._out_of_bounds_count[env.episode_length_buf == 0] = 0.0
+    # 누적 횟수에 따른 패널티 계산 (ex: 선형, 혹은 지수적 증가)
+    count_based_penalty = env._out_of_bounds_count * 0.1  # 매번 이탈 시 패널티 0.5씩 증가
+
+    # 실제 패널티 (이탈이 발생한 경우에만 적용)
+    final_penalty = -out_of_bounds * count_based_penalty
+
+    return final_penalty
 
 
 def revisit_penalty(env: "ManagerBasedRLEnv"):
     """
     이미 방문한 grid cell을 다시 방문하면 벌점
     """
-    grid_x, grid_y = ee_to_grid(env)
-
-    # grid_mask 초기화
-    if not hasattr(env, "grid_mask"):
-        return torch.zeros(env.num_envs, dtype=torch.float, device=env.device)
+    prev_covered_count = env._prev_covered_count
+    current_covered_count = env._current_covered_count
+    no_new_coverage = (current_covered_count == prev_covered_count)
+                       
+    if not hasattr(env, "_revisit_count"):
+        env._revisit_count = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
     
-    # 현재 EE 위치가 grid_mask에서 True인지 확인 (재방문 여부 확인)
-    indices = torch.arange(env.num_envs, device=env.device)
-    is_revisited = env.grid_mask[indices, grid_x, grid_y]
-    revisited = is_revisited.float()   # True -> 1.0, False -> 0.0
+    revisit_increment = no_new_coverage.float()
+    env._revisit_count += revisit_increment
 
-    return -revisited
+    count_based_penalty = env._revisit_count * 0.1  # 매번 중복 방문 시 패널티 0.1씩 증가
+    final_penalty = no_new_coverage.float() * (-count_based_penalty)
+
+    return final_penalty
 
 
 def surface_proximity_reward(env: "ManagerBasedRLEnv"):
@@ -452,7 +480,7 @@ def reset_grid_mask(env: "ManagerBasedRLEnv", env_ids):
         env.grid_x_num = torch.ceil(wp_size_x_t / GRID_SIZE).long().item()
         env.grid_y_num = torch.ceil(wp_size_y_t / GRID_SIZE).long().item()
 
-    # 2. grid_mask 속성이 env에 없으면 초기 생성
+    # grid_mask 속성이 env에 없으면 초기 생성
     if not hasattr(env, "grid_mask"):
         env.grid_mask = torch.zeros((env.num_envs, env.grid_x_num, env.grid_y_num), dtype=torch.bool, device=env.device)
 
@@ -462,5 +490,12 @@ def reset_grid_mask(env: "ManagerBasedRLEnv", env_ids):
     # Grid Mask 상태 관찰(obs)에서 사용하는 히스토리도 함께 초기화
     if hasattr(env, "_grid_mask_history"):
         env._grid_mask_history[env_ids] = 0.0
+
+    # 리셋 시 누적 카운터 초기화
+    if hasattr(env, "_revisit_count"):
+        env._revisit_count[env_ids] = 0.0
+        
+    if hasattr(env, "_out_of_bounds_count"):
+        env._out_of_bounds_count[env_ids] = 0.0
 
     return {}
