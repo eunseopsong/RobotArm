@@ -2,8 +2,8 @@
 
 This project provides a reinforcement learning environment based on **Isaac Lab** for controlling a **UR10e robot arm** interacting with a workpiece.
 The training and evaluation are implemented using the `skrl` framework.
- <br />
- 
+<br />
+<br /> 
 ## Train & Play
 ### Train
 Run the following command to start reinforcement learning training:
