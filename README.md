@@ -33,7 +33,7 @@ RobotArm/source/RobotArm/RobotArm/robots/ur10e_w_spindle.py
 ```python
 UR10E_USD_PATH = "/home/eunseop/isaac/isaac_save/ur10e_tuning2.usd"
 ```
-다른 로봇 모델을 불러오려면 **UR10E_USD_PATH** 변경
+다른 로봇 모델을 불러오려면 **UR10E_USD_PATH** 변경.
 <br />
 <br />
 ## Workpiece 설정 (Workpiece Configuration)
@@ -53,7 +53,7 @@ workpiece = AssetBaseCfg(
     ),
 )
 ```
-다른 workpiece 모델을 불러오려면 **usd_path** 변경
+다른 workpiece 모델을 불러오려면 **usd_path** 변경.
 <br />
 <br />
 ## Reward 계산을 위한 Mesh 경로 변경
@@ -93,9 +93,7 @@ World
 
 ## 주의사항
 - 로봇 USD 변경 시 모델 경로 수정
-- Workpiece USD 변경 시:
-   usd_path 수정
-   rewards.py 내 mesh prim 경로 수정
+- Workpiece USD 변경 시: usd_path 수정, rewards.py 내 mesh prim 경로 수정
 - 잘못된 mesh 경로는 reward 계산 오류를 유발할 수 있음
 <br />
 
