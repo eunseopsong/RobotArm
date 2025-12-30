@@ -102,7 +102,7 @@ World
 ---
 <br />
 
-## 보상 및 유틸리티 함수 개요
+## 보상 및 유틸리티 함수
 본 섹션에서는 coverage 기반 강화학습을 위해 사용되는  
 보상 함수, 종료 조건, 로깅 및 각종 유틸리티 함수들을 설명합니다.
 <br />
@@ -149,13 +149,13 @@ World
 - 작업 영역 가장자리로 벗어나는 것을 방지하는 자석 형태의 보상
 <br />
 
-### 종료 조건 (Termination Condition)
+### 종료 조건 (Termination Conditions)
 `check_coverage_success(env)`
 - 전체 workpiece grid 중 **95% 이상 커버 시 성공으로 판단**
 - 성공 여부를 boolean tensor로 반환하여 episode 종료 조건에 사용
 <br />
 
-### 로그 저장
+### 로그 저장용 함수
 
 `init_coverage_logger()`
 - coverage 기록을 저장할 CSV 파일 초기화
@@ -198,16 +198,16 @@ World
 ---
 <br />
 
-## 관찰 함수 개요 (Observation Functions Overview)
+## 관찰 함수 (Observation Functions)
 본 섹션에서는 강화학습에 사용되는 관찰 함수들을 설명합니다.
 
-### `grid_mask_state_obs(env, grid_mask_history_len=4)`
+`grid_mask_state_obs(env, grid_mask_history_len=4)`
 - Workpiece 영역을 grid로 나눈 뒤 **방문 상태(grid mask)** 를 관찰값으로 제공
 - 각 grid cell은 방문 여부(True / False)를 나타냄
 - 최근 `grid_mask_history_len` step 동안의 grid 상태를 버퍼에 저장, 관찰
 - 에피소드 리셋 시 히스토리를 0으로 초기화
 
-### `ee_pose_history(env, history_len=5)`
+`ee_pose_history(env, history_len=5)`
 - 엔드이펙터(EE)의 위치 및 자세 히스토리를 관찰값으로 제공
 - 각 step에서 EE pose는 다음 형식으로 저장됨: [x, y, z, roll, pitch, yaw]
 - 최근 `history_len` step 동안의 EE pose를 버퍼에 저장, 관찰
